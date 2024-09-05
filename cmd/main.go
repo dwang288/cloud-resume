@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -35,17 +36,25 @@ type LambdaResponse struct {
 	StatusCode        int                 `json:"statusCode"`
 	Headers           map[string]string   `json:"headers"`
 	MultiValueHeaders map[string][]string `json:"multiValueHeaders"`
-	Body              map[string]int      `json:"body"`
+	Body              string              `json:"body"`
 }
 
 type Handler struct {
 	DynamoDBClient *dynamodb.Client
 }
 
+// TODO: only log each error once, not on every call level
 func (h *Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
 	r, err := api.UpdateTable(h.DynamoDBClient, "visitor_counter")
 	if err != nil {
+		log.Print("Error updating DynamoDB:", err)
 		return LambdaResponse{}, err
+	}
+
+	jsonBytes, err := json.Marshal(r)
+	if err != nil {
+		log.Print("Error marshaling body response to JSON:", err)
+		return LambdaResponse{}, nil
 	}
 
 	// Add return value to the lambda response's body
@@ -57,7 +66,7 @@ func (h *Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Body: r,
+		Body: string(jsonBytes),
 	}
 
 	return lambdaResponse, nil
