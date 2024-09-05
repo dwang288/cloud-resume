@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/aws/aws-lambda-go/lambda"
 
@@ -30,17 +32,41 @@ func main() {
 	log.SetFlags(0)
 }
 
+type LambdaResponse struct {
+	IsBase64Encoded   bool                `json:"isBase64Encoded"`
+	StatusCode        int                 `json:"statusCode"`
+	Headers           map[string]string   `json:"headers"`
+	MultiValueHeaders map[string][]string `json:"multiValueHeaders"`
+	Body              map[string]int      `json:"body"`
+}
+
 type Handler struct {
 	DynamoDBClient *dynamodb.Client
 }
 
-func (h *Handler) HandleRequest(ctx context.Context) (*string, error) {
-	response, err := api.UpdateTable(h.DynamoDBClient, "visitor_counter")
+func (h *Handler) HandleRequest(ctx context.Context) (*[]byte, error) {
+	r, err := api.UpdateTable(h.DynamoDBClient, "visitor_counter")
 
 	if err != nil {
 		return nil, err
 	}
 
-	message := fmt.Sprintf("num_visitors: %d!", response["num_visitors"])
-	return &message, nil
+	// Add return value to the lambda response's body and marshall struct to JSON
+
+	// TODO: Add CORS headers
+	lambdaResponse, err := json.Marshal(
+		LambdaResponse{
+			IsBase64Encoded: false,
+			StatusCode:      http.StatusOK,
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			Body: r,
+		})
+	if err != nil {
+		fmt.Println("Error marshaling struct to JSON:", err)
+		return nil, err
+	}
+
+	return &lambdaResponse, nil
 }
