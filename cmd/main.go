@@ -5,8 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -44,29 +42,23 @@ type Handler struct {
 	DynamoDBClient *dynamodb.Client
 }
 
-func (h *Handler) HandleRequest(ctx context.Context) (*[]byte, error) {
+func (h *Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
 	r, err := api.UpdateTable(h.DynamoDBClient, "visitor_counter")
-
 	if err != nil {
-		return nil, err
+		return LambdaResponse{}, err
 	}
 
-	// Add return value to the lambda response's body and marshall struct to JSON
+	// Add return value to the lambda response's body
 
 	// TODO: Add CORS headers
-	lambdaResponse, err := json.Marshal(
-		LambdaResponse{
-			IsBase64Encoded: false,
-			StatusCode:      http.StatusOK,
-			Headers: map[string]string{
-				"Content-Type": "application/json",
-			},
-			Body: r,
-		})
-	if err != nil {
-		fmt.Println("Error marshaling struct to JSON:", err)
-		return nil, err
+	lambdaResponse := LambdaResponse{
+		IsBase64Encoded: false,
+		StatusCode:      http.StatusOK,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Body: r,
 	}
 
-	return &lambdaResponse, nil
+	return lambdaResponse, nil
 }
