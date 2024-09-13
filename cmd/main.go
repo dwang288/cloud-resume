@@ -1,13 +1,11 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 package main
 
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
 
@@ -16,21 +14,37 @@ import (
 	"github.com/dwang288/cloud-resume-go-api/api"
 )
 
+//TODO: Add tests + mocks for DynamoDB
+
 func main() {
 
 	sdkConfig, err := config.LoadDefaultConfig(context.Background()) //TODO: check how config load works
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err != nil {
-		log.Fatalf("unable to load SDK config, %v", err)
+		logger.Error("unable to load SDK config", slog.Any("error", err))
 	}
-	dynamoDbClient := dynamodb.NewFromConfig(sdkConfig)
 
-	h := Handler{DynamoDBClient: dynamoDbClient}
+	query := &api.Query{
+		DynamoDBClient: dynamodb.NewFromConfig(sdkConfig),
+		TableName:      "visitor_counter",
+		PK:             "counter",
+		SK:             "SK",
+		Attribute:      "num_visitors",
+	}
+
+	//TODO: Figure out if I can output to stdout/stderr depending on log level
+	h := Handler{
+		Logger: logger,
+		Query:  query,
+	}
 
 	lambda.Start(h.HandleRequest)
-
-	log.SetFlags(0)
 }
 
+type Handler struct {
+	Logger *slog.Logger
+	Query  *api.Query
+}
 type LambdaResponse struct {
 	IsBase64Encoded   bool                `json:"isBase64Encoded"`
 	StatusCode        int                 `json:"statusCode"`
@@ -39,27 +53,22 @@ type LambdaResponse struct {
 	Body              string              `json:"body"`
 }
 
-type Handler struct {
-	DynamoDBClient *dynamodb.Client
-}
-
-// TODO: only log each error once, not on every call level
-func (h *Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
-	r, err := api.UpdateTable(h.DynamoDBClient, "visitor_counter")
+func (h Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
+	r, err := h.Query.UpdateTable(ctx)
 	if err != nil {
-		log.Print("Error updating DynamoDB:", err)
-		return LambdaResponse{}, err
+		h.Logger.Error("Error updating DynamoDB:", slog.Any("error", err))
+		// TODO: Figure out what i'm supposed to return to escape the function call since i've already logged
+		return LambdaResponse{}, nil
 	}
+	h.Logger.Info("Successfully called UpdateTable", "table", h.Query.TableName, "attribute", h.Query.Attribute, "value", r["num_visitors"])
 
 	jsonBytes, err := json.Marshal(r)
 	if err != nil {
-		log.Print("Error marshaling body response to JSON:", err)
+		h.Logger.Error("Error marshaling body response to JSON:", slog.Any("error", err))
+		// TODO: Figure out what i'm supposed to return to escape the function call
 		return LambdaResponse{}, nil
 	}
 
-	// Add return value to the lambda response's body
-
-	// TODO: Add CORS headers
 	lambdaResponse := LambdaResponse{
 		IsBase64Encoded: false,
 		StatusCode:      http.StatusOK,

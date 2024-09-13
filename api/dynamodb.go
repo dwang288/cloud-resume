@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -12,31 +11,32 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-// TODO: Use structured logger
-// TODO: Move all magic values into config
-func UpdateTable(client *dynamodb.Client, tableName string) (map[string]int, error) {
+type Query struct {
+	DynamoDBClient *dynamodb.Client
+	TableName      string
+	PK             string
+	SK             string
+	Attribute      string
+}
+
+func (q *Query) UpdateTable(ctx context.Context) (map[string]int, error) {
 	var attributeMap map[string]int
 
-	// Define the key of the item you want to update
-	pk := "counter"
-	sk := "SK"
-
 	update := expression.Add(
-		expression.Name("num_visitors"),
+		expression.Name(q.Attribute),
 		expression.Value(1),
 	)
 
 	expr, err := expression.NewBuilder().WithUpdate(update).Build()
 	if err != nil {
-		log.Print("Got error building expression:", err)
-		return nil, err
+		return nil, fmt.Errorf("got error building expression: %w", err)
 	}
 
-	response, err := client.UpdateItem(context.Background(), &dynamodb.UpdateItemInput{
-		TableName: aws.String(tableName),
+	response, err := q.DynamoDBClient.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(q.TableName),
 		Key: map[string]types.AttributeValue{
-			"PK": &types.AttributeValueMemberS{Value: pk},
-			"SK": &types.AttributeValueMemberS{Value: sk},
+			"PK": &types.AttributeValueMemberS{Value: q.PK},
+			"SK": &types.AttributeValueMemberS{Value: q.SK},
 		},
 		UpdateExpression:          expr.Update(),
 		ExpressionAttributeNames:  expr.Names(),
@@ -45,15 +45,12 @@ func UpdateTable(client *dynamodb.Client, tableName string) (map[string]int, err
 	})
 
 	if err != nil {
-		log.Print("Got error calling UpdateItem:", err)
-		return nil, err
+		return nil, fmt.Errorf("got error calling UpdateItem: %w", err)
 	}
 	err = attributevalue.UnmarshalMap(response.Attributes, &attributeMap) //TODO: unmarshals into the attributeMap
 	if err != nil {
-		log.Print("Couldn't unmarshall update response:", err)
-		return nil, err
+		return nil, fmt.Errorf("couldn't unmarshall update response: %w", err)
 	}
 
-	fmt.Printf("Successfully called UpdateTable, updated attribute %s in %s with %v\n", "num_visitors", tableName, attributeMap["num_visitors"])
-	return attributeMap, err
+	return attributeMap, nil
 }
