@@ -14,14 +14,14 @@ import (
 	"github.com/dwang288/cloud-resume-go-api/api"
 )
 
-//TODO: Add tests + mocks for DynamoDB
-
+// TODO: Add tests + mocks for DynamoDB
+// TODO: Move initialization of logger and query to a separate function
 func main() {
 
 	sdkConfig, err := config.LoadDefaultConfig(context.Background()) //TODO: check how config load works
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err != nil {
-		logger.Error("unable to load SDK config", slog.Any("error", err))
+		logger.Error("failed to load SDK config", slog.Any("error", err))
 	}
 
 	query := &api.Query{
@@ -54,18 +54,16 @@ type LambdaResponse struct {
 }
 
 func (h Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
-	r, err := h.Query.UpdateTable(ctx)
+	r, err := h.Query.IncrementAttribute(ctx)
 	if err != nil {
-		h.Logger.Error("Error updating DynamoDB:", slog.Any("error", err))
-		// TODO: Figure out what i'm supposed to return to escape the function call since i've already logged
+		h.Logger.Error("error updating DynamoDB", slog.Any("error", err))
 		return LambdaResponse{}, nil
 	}
-	h.Logger.Info("Successfully called UpdateTable", "table", h.Query.TableName, "attribute", h.Query.Attribute, "value", r["num_visitors"])
+	h.Logger.Info("successfully called UpdateTable", "table", h.Query.TableName, "attribute", h.Query.Attribute, "value", r["num_visitors"])
 
 	jsonBytes, err := json.Marshal(r)
 	if err != nil {
-		h.Logger.Error("Error marshaling body response to JSON:", slog.Any("error", err))
-		// TODO: Figure out what i'm supposed to return to escape the function call
+		h.Logger.Error("error marshaling body response to JSON", slog.Any("error", err))
 		return LambdaResponse{}, nil
 	}
 

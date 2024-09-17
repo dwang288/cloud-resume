@@ -19,8 +19,10 @@ type Query struct {
 	Attribute      string
 }
 
-func (q *Query) UpdateTable(ctx context.Context) (map[string]int, error) {
-	var attributeMap map[string]int
+type UpdateResponse map[string]int
+
+func (q *Query) IncrementAttribute(ctx context.Context) (UpdateResponse, error) {
+	var attrResponse UpdateResponse
 
 	update := expression.Add(
 		expression.Name(q.Attribute),
@@ -29,7 +31,7 @@ func (q *Query) UpdateTable(ctx context.Context) (map[string]int, error) {
 
 	expr, err := expression.NewBuilder().WithUpdate(update).Build()
 	if err != nil {
-		return nil, fmt.Errorf("got error building expression: %w", err)
+		return UpdateResponse{}, fmt.Errorf("failed to build expression: %w", err)
 	}
 
 	response, err := q.DynamoDBClient.UpdateItem(ctx, &dynamodb.UpdateItemInput{
@@ -45,12 +47,12 @@ func (q *Query) UpdateTable(ctx context.Context) (map[string]int, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("got error calling UpdateItem: %w", err)
+		return UpdateResponse{}, fmt.Errorf("failed to update DynamoDB: %w", err)
 	}
-	err = attributevalue.UnmarshalMap(response.Attributes, &attributeMap) //TODO: unmarshals into the attributeMap
+	err = attributevalue.UnmarshalMap(response.Attributes, &attrResponse)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't unmarshall update response: %w", err)
+		return UpdateResponse{}, fmt.Errorf("failed to unmarshall update response: %w", err)
 	}
 
-	return attributeMap, nil
+	return attrResponse, nil
 }
