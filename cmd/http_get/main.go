@@ -38,7 +38,6 @@ func main() {
 		Query:  query,
 	}
 
-	h.HandleRequest(context.Background())
 	lambda.Start(h.HandleRequest)
 }
 
