@@ -56,14 +56,13 @@ type LambdaResponse struct {
 func (h Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
 	r, err := h.Query.IncrementAttribute(ctx)
 	if err != nil {
-		h.Logger.Error("error updating DynamoDB", "table", h.Query.TableName, "attribute", h.Query.Attribute, slog.Any("error", err))
+		h.Logger.Error("error updating DynamoDB", "table", h.Query.TableName, "PK", h.Query.PK, "SK", h.Query.SK, "attribute", h.Query.Attribute, slog.Any("error", err))
 		return LambdaResponse{}, nil
 	}
-	h.Logger.Info("successfully incremented attribute", "table", h.Query.TableName, "attribute", h.Query.Attribute, "value", r["num_visitors"])
 
 	jsonBytes, err := json.Marshal(r)
 	if err != nil {
-		h.Logger.Error("error marshaling body response to JSON", "table", h.Query.TableName, "attribute", h.Query.Attribute, "value", slog.Any("error", err))
+		h.Logger.Error("error marshaling body response to JSON", "table", h.Query.TableName, "PK", h.Query.PK, "SK", h.Query.SK, "attribute", h.Query.Attribute, "value", slog.Any("error", err))
 		return LambdaResponse{}, nil
 	}
 
@@ -75,6 +74,8 @@ func (h Handler) HandleRequest(ctx context.Context) (LambdaResponse, error) {
 		},
 		Body: string(jsonBytes),
 	}
+
+	h.Logger.Info("successfully incremented attribute value", "table", h.Query.TableName, "PK", h.Query.PK, "SK", h.Query.SK, "attribute", h.Query.Attribute, "response", lambdaResponse)
 
 	return lambdaResponse, nil
 }
